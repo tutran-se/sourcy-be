@@ -10,7 +10,6 @@ on:
 
 jobs:
   build-and-push:
-    if: contains(github.event.head_commit.message, 'sourcy-api')
     runs-on: ubuntu-latest
 
     env:
