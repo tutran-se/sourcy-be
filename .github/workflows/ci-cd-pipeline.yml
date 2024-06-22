@@ -9,7 +9,8 @@ on:
       - "sourcy-infras/**"
 
 jobs:
-  build-and-deploy:
+  build-and-push:
+    if: contains(github.event.head_commit.message, 'sourcy-api')
     runs-on: ubuntu-latest
 
     env:
@@ -38,3 +39,36 @@ jobs:
         run: |
           COMMIT_HASH=$(git rev-parse --short HEAD)
           docker push $IMAGE_NAME:$COMMIT_HASH
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      TF_WORKING_DIR: ./sourcy-infras
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.0.0
+
+      - name: Initialize Terraform
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init
+
+      - name: Plan Terraform changes
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          terraform plan -var "docker_image=$IMAGE_NAME:$COMMIT_HASH"
+
+      - name: Apply Terraform changes
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          terraform apply -auto-approve -var "docker_image=$IMAGE_NAME:$COMMIT_HASH"
