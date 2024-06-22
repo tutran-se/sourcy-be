@@ -1,6 +1,7 @@
 # Define the S3 bucket
 resource "aws_s3_bucket" "terraform_state" {
   bucket = "remote-terraform-state-bucket"
+  region = "ap-southeast-1"
 }
 
 # Define the DynamoDB table for state locking
