@@ -205,3 +205,21 @@ resource "aws_route_table_association" "public_subnet_2_association" {
 output "alb_dns_name" {
   value = aws_alb.main_alb.dns_name
 }
+
+
+# Define the S3 bucket
+resource "aws_s3_bucket" "terraform_state" {
+  bucket = "ap-southeast-1-remote-terraform-state-bucket"
+}
+
+# Define the DynamoDB table for state locking
+resource "aws_dynamodb_table" "terraform_locks" {
+  name         = "terraform-locks"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+}
