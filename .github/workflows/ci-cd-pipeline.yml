@@ -24,17 +24,17 @@ jobs:
         with:
           node-version: "20"
 
-    #   - name: Build Docker image
-    #     working-directory: ./sourcy-api
-    #     run: |
-    #       COMMIT_HASH=$(git rev-parse --short HEAD)
-    #       docker build -t $IMAGE_NAME:$COMMIT_HASH .
+      - name: Build Docker image
+        working-directory: ./sourcy-api
+        run: |
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          docker build -t $IMAGE_NAME:$COMMIT_HASH .
 
-    #   - name: Log in to Docker Hub
-    #     run: echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
 
-    #   - name: Push Docker image to Docker Hub
-    #     working-directory: ./sourcy-api
-    #     run: |
-    #       COMMIT_HASH=$(git rev-parse --short HEAD)
-    #       docker push $IMAGE_NAME:$COMMIT_HASH
+      - name: Push Docker image to Docker Hub
+        working-directory: ./sourcy-api
+        run: |
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          docker push $IMAGE_NAME:$COMMIT_HASH
