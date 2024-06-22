@@ -8,13 +8,11 @@ on:
       - "sourcy-api/**"
       - "sourcy-infras/**"
 
+env:
+  IMAGE_NAME: tutran0806/sourcy-api
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-
-    env:
-      IMAGE_NAME: tutran0806/sourcy-api
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
