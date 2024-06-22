@@ -1,0 +1,19 @@
+# all node_modules directories
+**/node_modules
+
+# Terraform state files
+/sourcy-infras/terraform.tfstate
+/sourcy-infras/terraform.tfstate.backup
+
+# .terraform directory
+/sourcy-infras/.terraform/
+
+# Terraform lock file
+/sourcy-infras/.terraform.lock.hcl
+
+# Ignore override files as they are usually used to override resources during development
+/sourcy-infras/*.override.tf
+/sourcy-infras/*.override.tf.json
+
+# Include specific files if needed
+# !sourcy-infras/example_override.tf
