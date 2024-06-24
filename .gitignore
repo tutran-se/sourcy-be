@@ -1,6 +1,12 @@
 # all node_modules directories
 **/node_modules
 
+
+# all .env files
+**/.env
+
+**/dist
+
 # Terraform state files
 /sourcy-infras/terraform.tfstate
 /sourcy-infras/terraform.tfstate.backup

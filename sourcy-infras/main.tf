@@ -155,6 +155,28 @@ resource "aws_ecs_task_definition" "app" {
       containerPort = 80
     }]
     essential = true
+    environment = [
+      {
+        name  = "PORT"
+        value = 80
+      },
+      {
+        name  = "DB_NAME"
+        value = var.db_name
+      },
+      {
+        name  = "DB_USER"
+        value = var.db_user
+      },
+      {
+        name  = "DB_PASS"
+        value = var.db_password
+      },
+      {
+        name  = "DB_HOST"
+        value = aws_db_instance.postgres_db.address
+      },
+    ]
   }])
 }
 
@@ -201,10 +223,6 @@ resource "aws_route_table_association" "public_subnet_2_association" {
   route_table_id = aws_route_table.main.id
 }
 
-// output alb dns name
-output "alb_dns_name" {
-  value = aws_alb.main_alb.dns_name
-}
 
 
 # Define the S3 bucket
