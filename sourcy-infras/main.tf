@@ -158,7 +158,7 @@ resource "aws_ecs_task_definition" "app" {
     environment = [
       {
         name  = "PORT"
-        value = 80
+        value = "80"
       },
       {
         name  = "DB_NAME"
