@@ -1,4 +1,6 @@
 import express from "express";
+import cors from "cors";
+import helmet from "helmet";
 import Product from "./db/Product";
 import sequelize from "./db/config";
 import { Op } from "@sequelize/core";
@@ -6,6 +8,16 @@ import { WhereOptions } from "sequelize";
 
 const app = express();
 const port = process.env.PORT || 5000;
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Cors
+app.use(cors());
+
+// Helmet
+app.use(helmet());
 
 // Health check
 app.get("/healthz", async (_, res) => {
