@@ -1,29 +1,75 @@
 import express from "express";
 import Product from "./db/Product";
-import ProductVariants from "./db/ProductVariants";
-import ProductAttributes from "./db/ProductAttributes";
 import sequelize from "./db/config";
+import { Op } from "@sequelize/core";
+import { WhereOptions } from "sequelize";
 
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.get("/", async (req, res) => {
+// Health check
+app.get("/healthz", async (_, res) => {
   res.send("Health check!!!");
 });
 
-app.get("/search", async (req, res) => {
-  const products = await Product.findAll({
-    limit: 1,
-  });
-  const variants = await ProductVariants.findAll({
-    limit: 1,
-  });
+// Get all products by search term
+app.get("/api/v1/products/search", async (req, res) => {
+  try {
+    const { searchTerm } = req.query;
 
-  const attributes = await ProductAttributes.findAll({
-    limit: 1,
-  });
+    if (!searchTerm) {
+      return res.status(400).json({ message: "searchTerm is required" });
+    }
 
-  res.json({ products, variants, attributes });
+    const products = await Product.findAll({
+      where: {
+        [Op.or]: [
+          {
+            title: {
+              [Op.iLike]: `%${searchTerm}%`,
+            },
+          },
+          {
+            title_translated: {
+              [Op.iLike]: `%${searchTerm}%`,
+            },
+          },
+          {
+            keyword: {
+              [Op.iLike]: `%${searchTerm}%`,
+            },
+          },
+          {
+            gpt_category_suggestion: {
+              [Op.iLike]: `%${searchTerm}%`,
+            },
+          },
+          {
+            gpt_description: {
+              [Op.iLike]: `%${searchTerm}%`,
+            },
+          },
+          {
+            product_label: {
+              [Op.iLike]: `%${searchTerm}%`,
+            },
+          },
+          {
+            trending_label: {
+              [Op.iLike]: `%${searchTerm}%`,
+            },
+          },
+        ],
+      } as WhereOptions<any>,
+    });
+
+    res.status(200).json(products);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      error,
+    });
+  }
 });
 
 const main = async () => {

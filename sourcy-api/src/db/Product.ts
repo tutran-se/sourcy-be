@@ -104,6 +104,34 @@ Product.init(
     tableName: "products",
     sequelize: sequelize,
     timestamps: false,
+    indexes: [
+      {
+        unique: true,
+        fields: ["product_id"],
+      },
+      // index for searching
+      {
+        fields: ["title"],
+      },
+      {
+        fields: ["title_translated"],
+      },
+      {
+        fields: ["keyword"],
+      },
+      {
+        fields: ["gpt_category_suggestion"],
+      },
+      {
+        fields: ["gpt_description"],
+      },
+      {
+        fields: ["product_label"],
+      },
+      {
+        fields: ["trending_label"],
+      },
+    ],
   }
 );
 
