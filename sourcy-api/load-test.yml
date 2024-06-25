@@ -1,0 +1,13 @@
+config:
+  target: "http://main-alb-2093095854.ap-southeast-1.elb.amazonaws.com"
+  phases:
+    - duration: 60
+      arrivalRate: 1000
+      rampTo: 1000
+      name: "Ramp up to 1000 users"
+scenarios:
+  - flow:
+      - get:
+          url: "/api/v1/products/recommendations?productId=18"
+      - get:
+          url: "/api/v1/products/search?searchTerm=table"
