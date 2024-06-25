@@ -5,6 +5,11 @@
 # all .env files
 **/.env
 
+# all sourcy keys
+**/sourcy.key
+**/sourcy.crt
+
+
 **/dist
 
 # Terraform state files

@@ -1,10 +1,13 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import Product from "./db/Product";
 import sequelize from "./db/config";
+import Product from "./db/Product";
+import ProductVariants from "./db/ProductVariants";
+import ProductAttributes from "./db/ProductAttributes";
 import { Op } from "@sequelize/core";
 import { WhereOptions } from "sequelize";
+import { getRecommendations } from "./utils";
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -34,6 +37,13 @@ app.get("/api/v1/products/search", async (req, res) => {
     }
 
     const products = await Product.findAll({
+      attributes: [
+        "product_id",
+        "title",
+        "title_translated",
+        "gpt_description",
+        "image_urls",
+      ],
       where: {
         [Op.or]: [
           {
@@ -76,6 +86,35 @@ app.get("/api/v1/products/search", async (req, res) => {
     });
 
     res.status(200).json(products);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      error,
+    });
+  }
+});
+
+// Get all related products of a product
+app.get("/api/v1/products/recommendations", async (req, res) => {
+  try {
+    const { productId } = req.query;
+
+    if (!productId) {
+      return res.status(400).json({ message: "productId is required" });
+    }
+
+    const products = await Product.findAll();
+    const attributes = await ProductAttributes.findAll();
+    const variants = await ProductVariants.findAll();
+
+    const recommendations = getRecommendations(
+      products.find((product) => product.product_id === Number(productId)),
+      products,
+      attributes,
+      variants
+    );
+
+    res.status(200).json(recommendations);
   } catch (error) {
     console.log(error);
     res.status(500).json({
