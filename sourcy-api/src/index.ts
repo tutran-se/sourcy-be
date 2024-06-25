@@ -1,10 +1,12 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import sequelize from "./db/config";
 import Product from "./db/Product";
 import ProductVariants from "./db/ProductVariants";
 import ProductAttributes from "./db/ProductAttributes";
+import { check, validationResult } from "express-validator";
+
 import { Op } from "@sequelize/core";
 import { WhereOptions } from "sequelize";
 import { getRecommendations } from "./utils";
@@ -28,100 +30,119 @@ app.get("/healthz", async (_, res) => {
 });
 
 // Get all products by search term
-app.get("/api/v1/products/search", async (req, res) => {
-  try {
-    const { searchTerm } = req.query;
-
-    if (!searchTerm) {
-      return res.status(400).json({ message: "searchTerm is required" });
+app.get(
+  "/api/v1/products/search",
+  [check("searchTerm").trim().escape()],
+  async (req: Request, res: Response) => {
+    // Validate request
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
 
-    const products = await Product.findAll({
-      attributes: [
-        "product_id",
-        "title",
-        "title_translated",
-        "gpt_description",
-        "image_urls",
-      ],
-      where: {
-        [Op.or]: [
-          {
-            title: {
-              [Op.iLike]: `%${searchTerm}%`,
-            },
-          },
-          {
-            title_translated: {
-              [Op.iLike]: `%${searchTerm}%`,
-            },
-          },
-          {
-            keyword: {
-              [Op.iLike]: `%${searchTerm}%`,
-            },
-          },
-          {
-            gpt_category_suggestion: {
-              [Op.iLike]: `%${searchTerm}%`,
-            },
-          },
-          {
-            gpt_description: {
-              [Op.iLike]: `%${searchTerm}%`,
-            },
-          },
-          {
-            product_label: {
-              [Op.iLike]: `%${searchTerm}%`,
-            },
-          },
-          {
-            trending_label: {
-              [Op.iLike]: `%${searchTerm}%`,
-            },
-          },
-        ],
-      } as WhereOptions<any>,
-    });
+    try {
+      const { searchTerm } = req.query;
 
-    res.status(200).json(products);
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({
-      error,
-    });
+      if (!searchTerm) {
+        return res.status(400).json({ message: "searchTerm is required" });
+      }
+
+      const products = await Product.findAll({
+        attributes: [
+          "product_id",
+          "title",
+          "title_translated",
+          "gpt_description",
+          "image_urls",
+        ],
+        where: {
+          [Op.or]: [
+            {
+              title: {
+                [Op.iLike]: `%${searchTerm}%`,
+              },
+            },
+            {
+              title_translated: {
+                [Op.iLike]: `%${searchTerm}%`,
+              },
+            },
+            {
+              keyword: {
+                [Op.iLike]: `%${searchTerm}%`,
+              },
+            },
+            {
+              gpt_category_suggestion: {
+                [Op.iLike]: `%${searchTerm}%`,
+              },
+            },
+            {
+              gpt_description: {
+                [Op.iLike]: `%${searchTerm}%`,
+              },
+            },
+            {
+              product_label: {
+                [Op.iLike]: `%${searchTerm}%`,
+              },
+            },
+            {
+              trending_label: {
+                [Op.iLike]: `%${searchTerm}%`,
+              },
+            },
+          ],
+        } as WhereOptions<Partial<Product>>,
+      });
+
+      res.status(200).json(products);
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({
+        error,
+      });
+    }
   }
-});
+);
 
 // Get all related products of a product
-app.get("/api/v1/products/recommendations", async (req, res) => {
-  try {
-    const { productId } = req.query;
-
-    if (!productId) {
-      return res.status(400).json({ message: "productId is required" });
+app.get(
+  "/api/v1/products/recommendations",
+  [check("productId").isInt().toInt()],
+  async (req: Request, res: Response) => {
+    // Validate request
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
+    try {
+      const { productId } = req.query;
 
-    const products = await Product.findAll();
-    const attributes = await ProductAttributes.findAll();
-    const variants = await ProductVariants.findAll();
+      if (!productId) {
+        return res.status(400).json({ message: "productId is required" });
+      }
 
-    const recommendations = getRecommendations(
-      products.find((product) => product.product_id === Number(productId)),
-      products,
-      attributes,
-      variants
-    );
+      const products = await Product.findAll();
+      const attributes = await ProductAttributes.findAll();
+      const variants = await ProductVariants.findAll();
 
-    res.status(200).json(recommendations);
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({
-      error,
-    });
+      const recommendations = getRecommendations(
+        products.find((product) => product.product_id === Number(productId)),
+        products,
+        attributes,
+        variants
+      );
+
+      res.status(200).json(recommendations);
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({
+        error,
+      });
+    }
   }
-});
+);
 
 const main = async () => {
   try {
