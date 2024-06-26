@@ -9,7 +9,7 @@ import { check, validationResult } from "express-validator";
 
 import { Op } from "@sequelize/core";
 import { WhereOptions } from "sequelize";
-import { getRecommendations } from "./utils";
+import { getRecommendations, initializeRecommenderData } from "./utils";
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -43,8 +43,23 @@ app.get(
     try {
       const { searchTerm } = req.query;
 
-      if (!searchTerm) {
-        return res.status(400).json({ message: "searchTerm is required" });
+      if (!searchTerm || typeof searchTerm !== "string") {
+        return res
+          .status(400)
+          .json({ message: "searchTerm is required and must be a string" });
+      }
+
+      // Split the search term into words
+      const searchWords = searchTerm
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((word) => word.length > 2);
+
+      if (searchWords.length === 0) {
+        return res.status(400).json({
+          message:
+            "Search term must contain at least one word with more than 2 characters",
+        });
       }
 
       const products = await Product.findAll({
@@ -56,49 +71,23 @@ app.get(
           "image_urls",
         ],
         where: {
-          [Op.or]: [
-            {
-              title: {
-                [Op.iLike]: `%${searchTerm}%`,
-              },
-            },
-            {
-              title_translated: {
-                [Op.iLike]: `%${searchTerm}%`,
-              },
-            },
-            {
-              keyword: {
-                [Op.iLike]: `%${searchTerm}%`,
-              },
-            },
-            {
-              gpt_category_suggestion: {
-                [Op.iLike]: `%${searchTerm}%`,
-              },
-            },
-            {
-              gpt_description: {
-                [Op.iLike]: `%${searchTerm}%`,
-              },
-            },
-            {
-              product_label: {
-                [Op.iLike]: `%${searchTerm}%`,
-              },
-            },
-            {
-              trending_label: {
-                [Op.iLike]: `%${searchTerm}%`,
-              },
-            },
-          ],
+          [Op.and]: searchWords.map((word) => ({
+            [Op.or]: [
+              { title: { [Op.iLike]: `% ${word} %` } },
+              { title_translated: { [Op.iLike]: `% ${word} %` } },
+              { keyword: { [Op.iLike]: `% ${word} %` } },
+              { gpt_category_suggestion: { [Op.iLike]: `% ${word} %` } },
+              { gpt_description: { [Op.iLike]: `% ${word} %` } },
+              { product_label: { [Op.iLike]: `% ${word} %` } },
+              { trending_label: { [Op.iLike]: `% ${word} %` } },
+            ],
+          })),
         } as WhereOptions<Partial<Product>>,
       });
 
       res.status(200).json(products);
     } catch (error) {
-      console.log(error);
+      console.error(error);
       res.status(500).json({
         error,
       });
@@ -127,11 +116,18 @@ app.get(
       const attributes = await ProductAttributes.findAll();
       const variants = await ProductVariants.findAll();
 
-      const recommendations = getRecommendations(
-        products.find((product) => product.product_id === Number(productId)),
+      // Initialize the recommender data: extract, tokenize, and calculate IDF
+      const recommenderData = initializeRecommenderData(
         products,
         attributes,
         variants
+      );
+
+      // Get recommendations for a specific product
+      const recommendations = getRecommendations(
+        Number(productId),
+        recommenderData,
+        0.5
       );
 
       res.status(200).json(recommendations);

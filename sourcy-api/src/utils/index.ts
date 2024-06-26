@@ -2,13 +2,23 @@ import Product from "../db/Product";
 import ProductAttributes from "../db/ProductAttributes";
 import ProductVariants from "../db/ProductVariants";
 
-// Function to extract text features from product, attributes, and variants
+interface ProductFeatures {
+  product: Product;
+  features: string[];
+}
+
+interface RecommenderData {
+  productFeatures: ProductFeatures[];
+  allDocuments: string[][];
+  idfValues: Map<string, number>;
+}
+
 function extractTextFeatures(
   product: Product,
   attributes: ProductAttributes[],
   variants: ProductVariants[]
 ): string {
-  const productText = `title:${product.title} gpt_category_suggestion:${product.gpt_category_suggestion} gpt_description:${product.gpt_description} is_catalogued:${product.is_catalogued} is_validated:${product.is_validated} repurchase_rate:${product.repurchase_rate} stock_count:${product.stock_count} stock_units:${product.stock_units} keyword:${product.keyword} title_translated:${product.title_translated}`;
+  const productText = `title:${product.title} gpt_description:${product.gpt_description} stock_units:${product.stock_units} title_translated:${product.title_translated}`;
 
   const attributeText = attributes
     .filter((attr) => attr.product_id === product.product_id)
@@ -21,14 +31,16 @@ function extractTextFeatures(
     .filter((variant) => variant.product_id === product.product_id)
     .map(
       (variant) =>
-        `variant_key:${variant.product_variant_key} price:${variant.price} stock_count:${variant.stock_count} weight_per_unit_kg:${variant.weight_per_unit_kg} length_cm:${variant.length_cm} width_cm:${variant.width_cm} height_cm:${variant.height_cm} price_currency:${variant.price_currency} stock_units:${variant.stock_units} is_validated:${variant.is_validated} is_catalogued:${variant.is_catalogued}`
+        `price:${variant.price} weight_per_unit_kg:${variant.weight_per_unit_kg} ` +
+        `length_cm:${variant.length_cm} width_cm:${variant.width_cm} height_cm:${variant.height_cm} ` +
+        `price_currency:${variant.price_currency} is_validated:${variant.is_validated} ` +
+        `is_catalogued:${variant.is_catalogued}`
     )
     .join(" ");
 
   return `${productText} ${attributeText} ${variantText}`;
 }
 
-// Tokenize the text into words
 function tokenize(text: string): string[] {
   return text
     .toLowerCase()
@@ -36,94 +48,130 @@ function tokenize(text: string): string[] {
     .filter((word) => word.length > 0);
 }
 
-// Calculate term frequency (TF)
-function termFrequency(term: string, document: string[]): number {
-  const termCount = document.filter((word) => word === term).length;
-  return termCount / document.length;
-}
-
-// Calculate inverse document frequency (IDF)
-function inverseDocumentFrequency(term: string, documents: string[][]): number {
-  const docCount = documents.length;
-  const termInDocsCount = documents.filter((doc) => doc.includes(term)).length;
-  return Math.log(docCount / (1 + termInDocsCount));
-}
-
-// Calculate TF-IDF vector for a document
-function tfIdfVector(document: string[], documents: string[][]): number[] {
-  const uniqueTerms = Array.from(new Set(document));
-  return uniqueTerms.map(
-    (term) =>
-      termFrequency(term, document) * inverseDocumentFrequency(term, documents)
-  );
-}
-
-// Calculate cosine similarity between two vectors
-function cosineSimilarity(vectorA: number[], vectorB: number[]): number {
-  const dotProduct = vectorA.reduce((sum, val, i) => sum + val * vectorB[i], 0);
-  const magnitudeA = Math.sqrt(
-    vectorA.reduce((sum, val) => sum + val * val, 0)
-  );
-  const magnitudeB = Math.sqrt(
-    vectorB.reduce((sum, val) => sum + val * val, 0)
-  );
-  return dotProduct / (magnitudeA * magnitudeB);
-}
-
-// Function to get recommendations
-function getRecommendations(
-  searchProduct: Product | undefined,
+function preprocessProducts(
   products: Product[],
   attributes: ProductAttributes[],
-  variants: ProductVariants[],
-  topN: number = 5
+  variants: ProductVariants[]
+): ProductFeatures[] {
+  return products.map((product) => ({
+    product,
+    features: tokenize(extractTextFeatures(product, attributes, variants)),
+  }));
+}
+
+function calculateIDF(documents: string[][]): Map<string, number> {
+  const idfValues = new Map<string, number>();
+  const docCount = documents.length;
+
+  const termDocCounts = new Map<string, number>();
+  for (const doc of documents) {
+    const uniqueTerms = new Set(doc);
+    for (const term of uniqueTerms) {
+      termDocCounts.set(term, (termDocCounts.get(term) || 0) + 1);
+    }
+  }
+
+  for (const [term, count] of termDocCounts) {
+    idfValues.set(term, Math.log(docCount / (1 + count)));
+  }
+
+  return idfValues;
+}
+
+function initializeRecommenderData(
+  products: Product[],
+  attributes: ProductAttributes[],
+  variants: ProductVariants[]
+): RecommenderData {
+  const productFeatures = preprocessProducts(products, attributes, variants);
+  const allDocuments = productFeatures.map((pf) => pf.features);
+  const idfValues = calculateIDF(allDocuments);
+
+  return { productFeatures, allDocuments, idfValues };
+}
+
+function calculateTFIDFVector(
+  document: string[],
+  idfValues: Map<string, number>
+): Map<string, number> {
+  const tfidf = new Map<string, number>();
+  const termFrequency = new Map<string, number>();
+
+  for (const term of document) {
+    termFrequency.set(term, (termFrequency.get(term) || 0) + 1);
+  }
+
+  for (const [term, tf] of termFrequency) {
+    const idf = idfValues.get(term) || 0;
+    tfidf.set(term, (tf / document.length) * idf);
+  }
+
+  return tfidf;
+}
+
+function cosineSimilarity(
+  vectorA: Map<string, number>,
+  vectorB: Map<string, number>
+): number {
+  let dotProduct = 0;
+  let magnitudeA = 0;
+  let magnitudeB = 0;
+
+  for (const [term, weightA] of vectorA) {
+    const weightB = vectorB.get(term) || 0;
+    dotProduct += weightA * weightB;
+    magnitudeA += weightA * weightA;
+  }
+
+  for (const weightB of vectorB.values()) {
+    magnitudeB += weightB * weightB;
+  }
+
+  return dotProduct / (Math.sqrt(magnitudeA) * Math.sqrt(magnitudeB));
+}
+
+function getRecommendations(
+  searchProductId: number,
+  recommenderData: RecommenderData,
+  similarityThreshold: number = 0.9
 ): Product[] {
-  if (!searchProduct) {
+  const { productFeatures, idfValues } = recommenderData;
+
+  const searchProductFeatures = productFeatures.find(
+    (pf) => pf.product.product_id === searchProductId
+  );
+
+  if (!searchProductFeatures) {
     return [];
   }
 
-  const allDocuments = products.map((product) =>
-    tokenize(extractTextFeatures(product, attributes, variants))
-  );
-  const searchDocument = tokenize(
-    extractTextFeatures(searchProduct, attributes, variants)
+  const searchVector = calculateTFIDFVector(
+    searchProductFeatures.features,
+    idfValues
   );
 
-  const allVectors = allDocuments.map((doc) => tfIdfVector(doc, allDocuments));
-  const searchVector = tfIdfVector(searchDocument, allDocuments);
+  const similarities = productFeatures
+    .filter((pf) => pf.product.product_id !== searchProductId)
+    .map((pf) => ({
+      product: pf.product,
+      similarity: cosineSimilarity(
+        searchVector,
+        calculateTFIDFVector(pf.features, idfValues)
+      ),
+    }))
+    .filter((item) => item.similarity > similarityThreshold)
+    .sort((a, b) => b.similarity - a.similarity);
 
-  const similarities = allVectors.map((vector) =>
-    cosineSimilarity(vector, searchVector)
+  return similarities.map(
+    ({ product }) =>
+      ({
+        product_id: product.product_id,
+        title: product.title,
+        title_translated: product.title_translated,
+        gpt_description: product.gpt_description,
+        image_urls: product.image_urls,
+      } as Product)
   );
-
-  // Filter out the search product
-  const filteredSimilarities = similarities
-    .map((score, index) => ({ score, index }))
-    .filter(
-      ({ index }) => products[index].product_id !== searchProduct.product_id
-    )
-    .sort((a, b) => b.score - a.score)
-    .slice(0, topN);
-
-  // return and extract certain fields
-  return filteredSimilarities
-    .map(({ index }) => products[index])
-    .map((product) => {
-      const {
-        product_id,
-        title,
-        title_translated,
-        gpt_description,
-        image_urls,
-      } = product;
-      return {
-        product_id,
-        title,
-        title_translated,
-        gpt_description,
-        image_urls,
-      } as Product;
-    });
 }
 
-export { getRecommendations };
+export { initializeRecommenderData, getRecommendations };
